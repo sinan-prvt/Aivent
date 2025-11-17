@@ -22,20 +22,25 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.role})"
     
-    
-class VendorProfile(models.Model):
-    CATEGORY_CHOICES = [
-        ("catering", "Catering"),
-        ("photography", "Photography"),
-        ("decoration", "Decoration"),
-        ("stage", "Stage"),
-        ("lighting", "Lighting"),
-        ("sound", "Sound"),
-        ("venue", "Venue"),
-        ("dj", "DJ"),
-        ("mehendi", "Mehendi"),
-    ]
+class Category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
 
+    def __str__(self):
+        return self.name
+    
+class SubCategory(models.Model):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        unique_together = ("category", "name")
+
+    def __str__(self):
+        return f"{self.category.name} - {self.name}"
+
+
+
+class VendorProfile(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("approved", "Approved"),
@@ -45,8 +50,11 @@ class VendorProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="vendor_profile")
 
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+
+    subcategories = models.ManyToManyField(SubCategory, blank=True)
+
     business_name = models.CharField(max_length=255)
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
     phone = models.CharField(max_length=20)
     address = models.CharField(max_length=500)
     gst_number = models.CharField(max_length=30, blank=True, null=True)
@@ -56,7 +64,8 @@ class VendorProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.business_name} ({self.category})"
+        return self.business_name
+
     
 
 class OTP(models.Model):
@@ -83,3 +92,73 @@ class OTP(models.Model):
 
     def is_expired(self):
         return timezone.now() >= self.expires_at
+    
+
+class VendorService(models.Model):
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="services")
+
+    title = models.CharField(max_length=255)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.vendor.business_name}"
+
+class VendorAvailability(models.Model):
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="availability")
+    date = models.DateField()
+
+    class Meta:
+        unique_together = ("vendor", "date")
+
+    def __str__(self):
+        return f"{self.vendor.business_name} unavailable on {self.date}"
+
+class Booking(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("accepted", "Accepted"),
+        ("rejected", "Rejected"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="customer_bookings")
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="vendor_bookings")
+    service = models.ForeignKey("VendorService", on_delete=models.SET_NULL, null=True, blank=True)
+
+    event_date = models.DateField()
+    message = models.TextField(blank=True, null=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.customer.username} → {self.vendor.business_name} on {self.event_date}"
+
+class Event(models.Model):
+    EVENT_TYPES = [
+        ("wedding", "Wedding"),
+        ("birthday", "Birthday"),
+        ("engagement", "Engagement"),
+        ("corporate", "Corporate Event"),
+        ("concert", "Concert"),
+        ("festival", "Festival"),
+        ("baby_shower", "Baby Shower"),
+        ("private_party", "Private Party"),
+    ]
+
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="events")
+
+    name = models.CharField(max_length=255)
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    date = models.DateField()
+    location = models.CharField(max_length=500, blank=True, null=True)
+    budget = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.event_type})"
