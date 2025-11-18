@@ -7,7 +7,7 @@ from apps.bookings.views import (
     RejectBookingView,
 )
 
-urlpattern = [
+urlpatterns = [
     path("bookings/create/", CreateBookingView.as_view(), name="booking-create"),
     path("bookings/customer/", CustomerBookingListView.as_view(), name="customer-bookings"),
 

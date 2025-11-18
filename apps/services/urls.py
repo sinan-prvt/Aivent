@@ -7,7 +7,7 @@ from apps.services.views import (
 )
 
 
-urlpattern = [
+urlpatterns = [
     path("vendor/services/", VendorServiceListView.as_view(), name="vendor-services"),
     path("vendor/services/create/", VendorServiceCreateView.as_view(), name="vendor-service-create"),
     path("vendor/services/<int:pk>/update/", VendorServiceUpdateView.as_view(), name="vendor-service-update"),

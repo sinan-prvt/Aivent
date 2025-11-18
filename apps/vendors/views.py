@@ -3,17 +3,21 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.vendors.serializers import (
-    VendorRegisterSerializer,
     VendorProfileSerializer,
-    VendorProfileUpdateSerializer
+    VendorProfileUpdateSerializer,
 )
+from apps.users.serializers import CustomLoginSerializer
 from apps.vendors.models import VendorProfile
 from apps.vendors.permissions import IsVendor
 from apps.users.permissions import IsAdmin
 from rest_framework.permissions import AllowAny, IsAuthenticated
-
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.shortcuts import get_object_or_404
 
+
+
+class CustomLoginView(TokenObtainPairView):
+    serializer_class = CustomLoginSerializer
 
 
 class VendorRegisterView(generics.CreateAPIView):

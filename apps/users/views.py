@@ -10,13 +10,19 @@ from apps.users.serializers import (
     SendOTPSerializer,
     VerifyOTPSerializer,
     ResetPasswordSerializer,
+    CustomLoginSerializer,
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
 from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 
 User = get_user_model()
+
+
+class CustomLoginView(TokenObtainPairView):
+    serializer_class = CustomLoginSerializer
 
 
 class RegisterView(generics.CreateAPIView):

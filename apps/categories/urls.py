@@ -6,7 +6,7 @@ from apps.categories.views import (
     SubCategoryCreateView,
 )
 
-urlpattern = [
+urlpatterns = [
     path("categories/", CategoryListView.as_view(), name="category-list"),
     path("categories/create/", CategoryCreateView.as_view(), name="category-create"),
 

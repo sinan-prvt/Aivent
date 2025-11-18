@@ -1,8 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from apps.vendors.models import VendorProfile
-from .serializers import CategorySerializer, SubCategorySerializer
-
+from apps.categories.serializers import CategorySerializer, SubCategorySerializer
 
 User = get_user_model()
 
@@ -46,7 +45,7 @@ class VendorRegisterSerializer(serializers.Serializer):
 
         return vendor
 
-    
+
 class VendorProfileSerializer(serializers.ModelSerializer):
     category = CategorySerializer()
     subcategories = SubCategorySerializer(many=True)

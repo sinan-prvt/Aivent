@@ -10,7 +10,7 @@ from apps.vendors.views import (
     SuspendVendorView,
 )
 
-urlpattern = [    
+urlpatterns = [    
     path("vendor/register/", VendorRegisterView.as_view(), name="vendor-register"),
     path("vendor/profile/", VendorProfileView.as_view(), name="vendor-profile"),
     path("vendor/profile/update/", VendorProfileUpdateView.as_view(), name="vendor-profile-update"),
