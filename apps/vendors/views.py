@@ -3,36 +3,29 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.vendors.serializers import (
+    VendorRegisterSerializer,
     VendorProfileSerializer,
-    VendorProfileUpdateSerializer,
+    VendorProfileUpdateSerializer
 )
-from apps.users.serializers import CustomLoginSerializer
 from apps.vendors.models import VendorProfile
 from apps.vendors.permissions import IsVendor
 from apps.users.permissions import IsAdmin
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView
+
 from django.shortcuts import get_object_or_404
 
 
-
-class CustomLoginView(TokenObtainPairView):
-    serializer_class = CustomLoginSerializer
-
-
 class VendorRegisterView(generics.CreateAPIView):
-    serializer_class = VendorProfileSerializer
-    permission_classes = [AllowAny]
+    serializer_class = VendorRegisterSerializer
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+    def create(self, request, *args, **kwargs):
+        s = self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        vendor = s.save()
+
         return Response({
-            "message": "Vendor registered successfully. Awaiting admin verification.",
+            "message": "Vendor registered successfully. Awaiting admin approval.",
             "vendor_id": vendor.id
-        }, status=status.HTTP_201_CREATED)
-
+        }, status=201)
 
 
 class VendorProfileView(generics.RetrieveAPIView):
@@ -41,7 +34,6 @@ class VendorProfileView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user.vendor_profile
-    
 
 
 class VendorProfileUpdateView(generics.UpdateAPIView):
@@ -52,14 +44,6 @@ class VendorProfileUpdateView(generics.UpdateAPIView):
         return self.request.user.vendor_profile
 
 
-
-class VendorListView(generics.ListAPIView):
-    queryset = VendorProfile.objects.all()
-    serializer_class = VendorProfileSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
-
-
-
 class PendingVendorsView(generics.ListAPIView):
     serializer_class = VendorProfileSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
@@ -68,34 +52,31 @@ class PendingVendorsView(generics.ListAPIView):
         return VendorProfile.objects.filter(status="pending")
 
 
-
 class ApproveVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def post(self, request, vendor_id):
-        vendor = get_object_or_404(VendorProfile, user__id=vendor_id)
+        vendor = get_object_or_404(VendorProfile, id=vendor_id)
         vendor.status = "approved"
         vendor.save()
-        return Response({"message": "Vendor approved"}, status=status.HTTP_200_OK)
-
+        return Response({"message": "Vendor approved"})
 
 
 class RejectVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def post(self, request, vendor_id):
-        vendor = get_object_or_404(VendorProfile, user__id=vendor_id)
+        vendor = get_object_or_404(VendorProfile, id=vendor_id)
         vendor.status = "rejected"
         vendor.save()
-        return Response({"message": "Vendor rejected"}, status=status.HTTP_200_OK)
-
+        return Response({"message": "Vendor rejected"})
 
 
 class SuspendVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def post(self, request, vendor_id):
-        vendor = get_object_or_404(VendorProfile, user__id=vendor_id)
+        vendor = get_object_or_404(VendorProfile, id=vendor_id)
         vendor.status = "suspended"
         vendor.save()
-        return Response({"message": "Vendor suspended"}, status=status.HTTP_200_OK)
+        return Response({"message": "Vendor suspended"})

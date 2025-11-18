@@ -3,7 +3,11 @@ from apps.vendors.models import VendorProfile
 
 
 class VendorAvailability(models.Model):
-    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="availability")
+    vendor = models.ForeignKey(
+        VendorProfile,
+        on_delete=models.CASCADE,
+        related_name="availability"
+    )
     date = models.DateField()
 
     class Meta:

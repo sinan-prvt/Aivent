@@ -6,10 +6,9 @@ from apps.services.views import (
     VendorServiceDeleteView,
 )
 
-
 urlpatterns = [
-    path("vendor/services/", VendorServiceListView.as_view(), name="vendor-services"),
-    path("vendor/services/create/", VendorServiceCreateView.as_view(), name="vendor-service-create"),
-    path("vendor/services/<int:pk>/update/", VendorServiceUpdateView.as_view(), name="vendor-service-update"),
-    path("vendor/services/<int:pk>/delete/", VendorServiceDeleteView.as_view(), name="vendor-service-delete"),
+    path("", VendorServiceListView.as_view(), name="vendor-services"),
+    path("create/", VendorServiceCreateView.as_view(), name="vendor-service-create"),
+    path("<int:pk>/update/", VendorServiceUpdateView.as_view(), name="vendor-service-update"),
+    path("<int:pk>/delete/", VendorServiceDeleteView.as_view(), name="vendor-service-delete"),
 ]

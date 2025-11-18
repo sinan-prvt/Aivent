@@ -6,6 +6,14 @@ from apps.availability.models import VendorAvailability
 from apps.vendors.permissions import IsVendor
 
 
+class VendorAvailabilityListView(generics.ListAPIView):
+    serializer_class = VendorAvailabilitySerializer
+    permission_classes = [IsAuthenticated, IsVendor]
+
+    def get_queryset(self):
+        vendor = self.request.user.vendor_profile
+        return vendor.availability.all().order_by("date")
+
 
 class VendorAvailabilityCreateView(generics.CreateAPIView):
     serializer_class = VendorAvailabilitySerializer
@@ -14,15 +22,6 @@ class VendorAvailabilityCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         vendor = self.request.user.vendor_profile
         serializer.save(vendor=vendor)
-
-
-class VendorAvailabilityListView(generics.ListAPIView):
-    serializer_class = VendorAvailabilitySerializer
-    permission_classes = [IsAuthenticated, IsVendor]
-
-    def get_queryset(self):
-        vendor = self.request.user.vendor_profile
-        return vendor.availability.all().order_by("date")
 
 
 class VendorAvailabilityDeleteView(generics.DestroyAPIView):

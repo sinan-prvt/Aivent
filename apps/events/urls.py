@@ -7,8 +7,8 @@ from apps.events.views import (
 )
 
 urlpatterns = [
-    path("events/", EventListView.as_view(), name="event-list"),
-    path("events/create/", EventCreateView.as_view(), name="event-create"),
-    path("events/<int:pk>/update/", EventUpdateView.as_view(), name="event-update"),
-    path("events/<int:pk>/delete/", EventDeleteView.as_view(), name="event-delete"),
+    path("", EventListView.as_view()),
+    path("create/", EventCreateView.as_view()),
+    path("<int:pk>/update/", EventUpdateView.as_view()),
+    path("<int:pk>/delete/", EventDeleteView.as_view()),
 ]

@@ -1,8 +1,9 @@
 from django.db import models
+
+from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
 from django.utils import timezone
-
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -12,12 +13,11 @@ class User(AbstractUser):
     ]
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="customer")
-
     email_verified = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
-    
+
 
 class OTP(models.Model):
     PURPOSE_CHOICE = [
@@ -34,12 +34,6 @@ class OTP(models.Model):
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['user', 'purpose']),
-            models.Index(fields=['expires_at']),
-        ]
 
     def is_expired(self):
         return timezone.now() >= self.expires_at

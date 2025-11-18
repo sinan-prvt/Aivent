@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+
 from apps.bookings.serializers import BookingSerializer
 from apps.bookings.models import Booking
 from apps.vendors.permissions import IsVendor
@@ -16,12 +17,17 @@ class CreateBookingView(generics.CreateAPIView):
     def perform_create(self, serializer):
         vendor_id = self.request.data.get("vendor_id")
         service_id = self.request.data.get("service_id")
+        event_date = self.request.data.get("event_date")
 
-        vendor_profile = get_object_or_404(VendorProfile, id=vendor_id)
+        vendor = get_object_or_404(VendorProfile, id=vendor_id)
+
+        # Check availability
+        if VendorAvailability.objects.filter(vendor=vendor, date=event_date).exists():
+            raise ValueError("Vendor is unavailable for this date")
 
         serializer.save(
             customer=self.request.user,
-            vendor=vendor_profile,
+            vendor=vendor,
             service_id=service_id
         )
 
@@ -33,7 +39,7 @@ class VendorBookingListView(generics.ListAPIView):
     def get_queryset(self):
         vendor = self.request.user.vendor_profile
         return Booking.objects.filter(vendor=vendor).order_by("-created_at")
-    
+
 
 class CustomerBookingListView(generics.ListAPIView):
     serializer_class = BookingSerializer

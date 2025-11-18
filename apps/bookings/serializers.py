@@ -15,4 +15,4 @@ class BookingSerializer(serializers.ModelSerializer):
             "status",
             "created_at"
         ]
-        read_only_fields = ["customer", "status", "vendor", "created_at"]
+        read_only_fields = ["customer", "vendor", "status", "created_at"]

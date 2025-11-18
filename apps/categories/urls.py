@@ -7,9 +7,9 @@ from apps.categories.views import (
 )
 
 urlpatterns = [
-    path("categories/", CategoryListView.as_view(), name="category-list"),
-    path("categories/create/", CategoryCreateView.as_view(), name="category-create"),
+    path("", CategoryListView.as_view(), name="category-list"),
+    path("create/", CategoryCreateView.as_view(), name="category-create"),
 
-    path("categories/<int:category_id>/subcategories/", SubCategoryListView.as_view(), name="subcategory-list"),
+    path("<int:category_id>/subcategories/", SubCategoryListView.as_view(), name="subcategory-list"),
     path("subcategories/create/", SubCategoryCreateView.as_view(), name="subcategory-create"),
 ]

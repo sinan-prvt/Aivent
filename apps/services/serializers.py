@@ -6,3 +6,4 @@ class VendorServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = VendorService
         fields = ["id", "title", "price", "description", "created_at"]
+        read_only_fields = ["id", "created_at"]

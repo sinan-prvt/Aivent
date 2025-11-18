@@ -1,3 +1,4 @@
+
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from apps.categories.models import Category, SubCategory
@@ -5,20 +6,14 @@ from apps.categories.serializers import CategorySerializer, SubCategorySerialize
 from apps.users.permissions import IsAdmin
 
 
-
-class CategoryCreateView(generics.CreateAPIView):
-    serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
-
-
 class CategoryListView(generics.ListAPIView):
-    serializer_class = CategorySerializer
     queryset = Category.objects.all()
+    serializer_class = CategorySerializer
     permission_classes = [AllowAny]
 
 
-class SubCategoryCreateView(generics.CreateAPIView):
-    serializer_class = SubCategorySerializer
+class CategoryCreateView(generics.CreateAPIView):
+    serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated, IsAdmin]
 
 
@@ -29,3 +24,7 @@ class SubCategoryListView(generics.ListAPIView):
         category_id = self.kwargs["category_id"]
         return SubCategory.objects.filter(category_id=category_id)
 
+
+class SubCategoryCreateView(generics.CreateAPIView):
+    serializer_class = SubCategorySerializer
+    permission_classes = [IsAuthenticated, IsAdmin]

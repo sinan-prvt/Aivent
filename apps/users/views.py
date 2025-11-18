@@ -10,43 +10,21 @@ from apps.users.serializers import (
     SendOTPSerializer,
     VerifyOTPSerializer,
     ResetPasswordSerializer,
-    CustomLoginSerializer,
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
-from rest_framework.permissions import AllowAny
-from rest_framework_simplejwt.views import TokenObtainPairView
-
 
 User = get_user_model()
-
-
-class CustomLoginView(TokenObtainPairView):
-    serializer_class = CustomLoginSerializer
 
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-
-        data = {
-            "id": str(user.id),
-            "email": user.email,
-            "message": "User registered successfully. Verify email (if implemented)."
-        }
-
-        return Response(data, status=status.HTTP_201_CREATED)
-
 
 class SendOTPView(generics.GenericAPIView):
-    permission_classes = [AllowAny]
     serializer_class = SendOTPSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
 
@@ -55,58 +33,49 @@ class SendOTPView(generics.GenericAPIView):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return Response({"detail": "User with this email not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "User not found"}, status=404)
 
-        raw_otp, otp_obj = create_otp_for_user(user, purpose=purpose)
+        raw_otp, otp_obj = create_otp_for_user(user, purpose)
+        print("OTP =", raw_otp)
 
-        print("DEBUG OTP =", raw_otp)
+        send_mail(
+            "AIVENT OTP",
+            f"Your OTP is: {raw_otp}",
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+        )
 
-        subject = "Your AIVENT OTP code"
-        message = f"Your OTP is {raw_otp} (expires in 10 minutes)."
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
-
-        return Response({"detail": "OTP sent to email."}, status=status.HTTP_200_OK)
+        return Response({"detail": "OTP sent"})
 
 
 class VerifyOTPView(generics.GenericAPIView):
-    permission_classes = [AllowAny]
     serializer_class = VerifyOTPSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
-        email = s.validated_data['email']
-        purpose = s.validated_data['purpose']
-        otp_value = s.validated_data['otp']
+
+        email = s.validated_data["email"]
+        purpose = s.validated_data["purpose"]
+        otp_value = s.validated_data["otp"]
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "User not found"}, status=404)
 
-        now = timezone.now()
+        otp_obj = OTP.objects.filter(
+            user=user, purpose=purpose, used=False, expires_at__gt=timezone.now()
+        ).order_by("-created_at").first()
 
-        otp_qs = OTP.objects.filter(
-            user=user,
-            purpose=purpose,
-            used=False,
-            expires_at__gt=now
-        ).order_by('-created_at')
+        if not otp_obj:
+            return Response({"detail": "No valid OTP found"}, status=400)
 
-        if not otp_qs.exists():
-            return Response({"detail": "No valid OTP found or expired."}, status=status.HTTP_400_BAD_REQUEST)
-
-        otp_obj = otp_qs.first()
         if verify_otp_entry(otp_obj, otp_value):
             otp_obj.used = True
             otp_obj.save()
+            return Response({"detail": "OTP verified"})
 
-            if purpose == 'email_verify':
-                pass
-
-            return Response({"detail": "OTP verified."}, status=status.HTTP_200_OK)
-        else:
-            return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        return Response({"detail": "Incorrect OTP"}, status=400)
 
 
 class SendResetOTPView(generics.GenericAPIView):
@@ -166,4 +135,3 @@ class ResetPasswordView(generics.GenericAPIView):
         user.save()
 
         return Response({"detail": "Password reset successfully."}, status=200)
-

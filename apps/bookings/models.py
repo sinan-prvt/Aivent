@@ -1,10 +1,12 @@
 from django.db import models
+
+# Create your models here.
+from django.db import models
 from django.conf import settings
 from apps.vendors.models import VendorProfile
 from apps.services.models import VendorService
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
+User = settings.AUTH_USER_MODEL
 
 
 class Booking(models.Model):
@@ -15,15 +17,22 @@ class Booking(models.Model):
         ("cancelled", "Cancelled"),
     ]
 
-    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="customer_bookings")
-    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="vendor_bookings")
-    service = models.ForeignKey( "vendors.VendorService", on_delete=models.SET_NULL, null=True, blank=True)
-    
+    customer = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="customer_bookings"
+    )
+
+    vendor = models.ForeignKey(
+        VendorProfile, on_delete=models.CASCADE, related_name="vendor_bookings"
+    )
+
+    service = models.ForeignKey(
+        VendorService, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
     event_date = models.DateField()
     message = models.TextField(blank=True, null=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

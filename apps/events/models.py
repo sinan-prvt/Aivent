@@ -1,8 +1,8 @@
 from django.db import models
 from django.conf import settings
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
+User = settings.AUTH_USER_MODEL
+
 
 class Event(models.Model):
     EVENT_TYPES = [
@@ -16,7 +16,9 @@ class Event(models.Model):
         ("private_party", "Private Party"),
     ]
 
-    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="events")
+    customer = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="events"
+    )
 
     name = models.CharField(max_length=255)
     event_type = models.CharField(max_length=50, choices=EVENT_TYPES)

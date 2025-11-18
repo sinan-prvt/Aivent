@@ -2,7 +2,7 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from apps.events.serializers import EventSerializer
 from apps.events.models import Event
- 
+
 
 class EventCreateView(generics.CreateAPIView):
     serializer_class = EventSerializer
@@ -17,7 +17,9 @@ class EventListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Event.objects.filter(customer=self.request.user).order_by("-created_at")
+        return Event.objects.filter(
+            customer=self.request.user
+        ).order_by("-created_at")
 
 
 class EventUpdateView(generics.UpdateAPIView):
