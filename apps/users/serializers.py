@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from apps.users.models import OTP
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
@@ -17,6 +18,36 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+
+class CustomLoginSerializer(TokenObtainPairSerializer):
+    username_field = "email"
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        user = authenticate(username=email, password=password)
+
+        if not user:
+            raise serializers.ValidationError("Invalid email or password")
+
+        if not user.email_verified:
+            raise serializers.ValidationError("Please verify email before login.")
+
+        attrs["username"] = email
+
+        data = super().validate(attrs)
+
+        data["user"] = {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+        }
+
+        return data
+
+
 
 
 class SendOTPSerializer(serializers.Serializer):

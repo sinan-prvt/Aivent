@@ -12,11 +12,18 @@ class User(AbstractUser):
         ("admin", "Admin"),
     ]
 
+    username = models.CharField(max_length=150, unique=False, blank=True)
+    email = models.EmailField(unique=True)
+
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="customer")
     email_verified = models.BooleanField(default=False)
 
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = []
+
     def __str__(self):
-        return f"{self.username} ({self.role})"
+        return f"{self.email} ({self.role})"
+
 
 
 class OTP(models.Model):

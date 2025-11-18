@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(os.path.join(BASE_DIR, '.env'))
@@ -28,6 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
+    
 
     'apps.users',
     'apps.vendors',
