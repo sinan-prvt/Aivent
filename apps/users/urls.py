@@ -17,5 +17,4 @@ urlpattern = [
     path("refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
     path("send-reset-otp/", SendResetOTPView.as_view(), name="auth-send-reset-otp"),
     path("reset-password/", ResetPasswordView.as_view(), name="auth-reset-password"),
-
 ]
