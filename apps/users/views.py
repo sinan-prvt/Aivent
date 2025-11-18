@@ -13,6 +13,8 @@ from apps.users.serializers import (
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
+from rest_framework.permissions import AllowAny
+
 
 User = get_user_model()
 
