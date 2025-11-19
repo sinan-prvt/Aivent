@@ -7,10 +7,12 @@ from apps.vendors.views import (
     ApproveVendorView,
     RejectVendorView,
     SuspendVendorView,
+    VendorResendOTPView,    
 )
 
 urlpatterns = [
     path("register/", VendorRegisterView.as_view()),
+    path("resend-otp/", VendorResendOTPView.as_view()),
 
     path("profile/", VendorProfileView.as_view()),
     path("profile/update/", VendorProfileUpdateView.as_view()),

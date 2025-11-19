@@ -7,16 +7,18 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
-    role = serializers.ChoiceField(choices=User.ROLE_CHOICES)
-    
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "password", "role")
+        fields = ("id", "username", "email", "password")
 
     def create(self, validated_data):
-        password = validated_data.pop("password")
-        user = User(**validated_data)
-        user.set_password(password)
+        user = User(
+            username=validated_data["username"],
+            email=validated_data["email"],
+            role="customer",
+        )
+        user.set_password(validated_data["password"])
         user.save()
         return user
 
@@ -40,13 +42,28 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 
         data = super().validate(attrs)
 
-        data["user"] = {
-            "id": user.id,
-            "email": user.email,
-            "role": user.role,
+        dashboard_map = {
+            "customer": "/customer/home",
+            "vendor": "/vendor/dashboard",
+            "admin": "/admin/panel"
         }
 
-        return data
+        response = {
+            "access": data["access"],
+            "refresh": data["refresh"],
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+            },
+            "dashboard": dashboard_map.get(user.role, "/")
+        }
+
+        if user.role == "vendor":
+            response["status"] = user.vendor_profile.status
+
+        return response
+
 
 
 
