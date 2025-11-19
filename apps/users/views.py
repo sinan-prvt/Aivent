@@ -1,6 +1,6 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -11,9 +11,16 @@ from apps.users.serializers import (
     VerifyOTPSerializer,
     ResetPasswordSerializer,
     CustomLoginSerializer,
+    LogoutSerializer,
+    ChangePasswordSerializer,
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from apps.users.permissions import IsVendor, IsAdmin, IsCustomer
+
+
 
 User = get_user_model()
 
@@ -147,3 +154,72 @@ class ResetPasswordView(generics.GenericAPIView):
         user.save()
 
         return Response({"detail": "Password reset successful"}, status=200)
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializers = LogoutSerializer(data=request.data)
+        serializers.is_valid(raise_exception=True)
+        refresh_token = serializers.validated_data("refresh")
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except:
+            return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK)
+    
+class LogoutAllView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+        tokens = OutstandingToken.objects.filter(user=request.user)
+
+        for t in tokens:
+            BlacklistedToken.objects.get_or_create(token=t)
+        return Response({"detail": "All tokens revoked"}, status=status.HTTP_200_OK)
+    
+class ChangePasswordView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChangePasswordSerializer
+
+    def post(self, request):
+        user = request.user
+        s =  self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+
+        old = s.validated_data["old_password"]
+        new = s.validated_data["new_password"]
+
+        if not user.check_password(old):
+            return Response({"detail": "Old password is incorrect"}, status=400)
+        
+        user.set_password(new)
+        user.save()
+
+        return Response({"detail": "Password changed successfully"}, status=200)
+    
+
+class VendorDashboardView(APIView):
+    permission_classes = [IsVendor]
+
+    def get(self, request):
+        return Response({"message": "Vendor dashboard"})
+    
+
+class AdminPanelView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        return Response({"message": "Admin Panel"})
+    
+
+class CustomerHistoryView(APIView):
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        return Response({"orders": []})

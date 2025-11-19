@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
-    
+    'rest_framework_simplejwt.token_blacklist',
 
     'apps.users',
     'apps.vendors',
@@ -146,3 +146,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+SIMPLE_JWT.update({
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+})
+

@@ -10,7 +10,7 @@ from apps.vendors.serializers import (
 from apps.vendors.models import VendorProfile
 from apps.vendors.permissions import IsVendor
 from apps.users.permissions import IsAdmin
-
+from apps.users.utils import create_otp_for_user
 from django.shortcuts import get_object_or_404
 
 
@@ -21,6 +21,8 @@ class VendorRegisterView(generics.CreateAPIView):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
         vendor = s.save()
+
+        raw_otp, otp_obj = create_otp_for_user(vendor.user, "email_verify")
 
         return Response({
             "message": "Vendor registered successfully. Awaiting admin approval.",

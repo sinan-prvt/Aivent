@@ -18,7 +18,6 @@ class VendorRegisterSerializer(serializers.Serializer):
 
     def create(self, validated_data):
 
-        # Create user
         user = User(
             username=validated_data["username"],
             email=validated_data["email"],
@@ -27,7 +26,6 @@ class VendorRegisterSerializer(serializers.Serializer):
         user.set_password(validated_data["password"])
         user.save()
 
-        # Create vendor
         vendor = VendorProfile.objects.create(
             user=user,
             category_id=validated_data["category_id"],
@@ -36,7 +34,6 @@ class VendorRegisterSerializer(serializers.Serializer):
             address=validated_data["address"]
         )
 
-        # Add subcategories
         subs = validated_data.get("subcategory_ids", [])
         if subs:
             vendor.subcategories.set(subs)
