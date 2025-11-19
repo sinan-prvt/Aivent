@@ -5,5 +5,5 @@ from apps.availability.models import VendorAvailability
 class VendorAvailabilitySerializer(serializers.ModelSerializer):
     class Meta:
         model = VendorAvailability
-        fields = ["id", "date"]
+        fields = ["id", "date", "is_available"]
         read_only_fields = ["id"]

@@ -5,5 +5,5 @@ from apps.services.models import VendorService
 class VendorServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = VendorService
-        fields = ["id", "title", "price", "description", "created_at"]
+        fields = ["id", "name", "price"]
         read_only_fields = ["id", "created_at"]
