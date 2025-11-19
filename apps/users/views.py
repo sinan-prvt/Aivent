@@ -13,22 +13,55 @@ from apps.users.serializers import (
     CustomLoginSerializer,
     LogoutSerializer,
     ChangePasswordSerializer,
+    VerifyMFASerializer,
+    ConfirmEnableMfaSerializer,
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from apps.users.permissions import IsVendor, IsAdmin, IsCustomer
-
+import pyotp
+import qrcode
+import io
+import base64
+from rest_framework import permissions
+from .models import MFASession
 
 
 User = get_user_model()
+
+
+def qrcode_base64_from_uri(uri):
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    return "data:image/png;base64," + b64
 
 
 
 class CustomLoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CustomLoginSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            raise
+
+        user = getattr(serializer, "_validated_user", None)
+        if user and user.mfa_enabled:
+            mfa_session = MFASession.create_for_user(user, valid_seconds=180)
+            return Response({
+                "mfa_required": True,
+                "session_id": str(mfa_session.id),
+                "detail": "MFA required. Provide TOTP code to /api/auth/verify-mfa/"
+            }, status=200)
+
+        return super().post(request, *args, **kwargs)
 
 
 
@@ -155,23 +188,26 @@ class ResetPasswordView(generics.GenericAPIView):
 
         return Response({"detail": "Password reset successful"}, status=200)
 
-
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        serializers = LogoutSerializer(data=request.data)
-        serializers.is_valid(raise_exception=True)
-        refresh_token = serializers.validated_data("refresh")
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data["refresh"]
 
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
-        except:
-            return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-        
+        except TokenError:
+            return Response({"detail": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"detail": "Could not blacklist token"}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK)
-    
+
+
 class LogoutAllView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -223,3 +259,86 @@ class CustomerHistoryView(APIView):
 
     def get(self, request):
         return Response({"orders": []})
+    
+
+class VerifyMFAView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = VerifyMFASerializer
+
+    def post(self, request):
+        s = self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        session_id = s.validated_data["session_id"]
+        code = s.validated_data["code"]
+
+        mfs = MFASession.objects.filter(id=session_id, used=False).first()
+        if not mfs or mfs.is_expired():
+            return Response({"detail": "Invalid or expired MFA session"}, status=400)
+
+        user = mfs.user
+        if not user.totp_secret:
+            return Response({"detail": "User has no TOTP configured"}, status=400)
+
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(code, valid_window=1):
+            return Response({"detail": "Invalid TOTP code"}, status=400)
+
+        mfs.used = True
+        mfs.save()
+
+        refresh = RefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        return Response({
+            "access": access,
+            "refresh": refresh_token,
+        }, status=200)
+
+
+class EnableMFAView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
+
+    def get(self, request):
+        user = request.user
+        secret = pyotp.random_base32()
+        totp = pyotp.TOTP(secret)
+        otpauth = totp.provisioning_uri(name=user.email, issuer_name="AIVENT")
+        qr_b64 = qrcode_base64_from_uri(otpauth)
+        return Response({"secret": secret, "otpauth_url": otpauth, "qr": qr_b64})
+
+
+class ConfirmEnableMFAView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
+    serializer_class = ConfirmEnableMfaSerializer
+
+    def post(self, request):
+        s = self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+
+        secret = s.validated_data["secret"]
+        code = s.validated_data["code"]
+
+        totp = pyotp.TOTP(secret)
+        if not totp.verify(code, valid_window=1):
+            return Response({"detail": "Invalid TOTP code"}, status=400)
+
+        user = request.user
+        user.totp_secret = secret
+        user.mfa_enabled = True
+        user.save()
+
+        return Response({"detail": "MFA enabled"}, status=200)
+
+
+class DisableMFAView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
+
+    def post(self, request):
+        user = request.user
+        user.totp_secret = None
+        user.mfa_enabled = False
+        user.save()
+        return Response({"detail": "MFA disabled"}, status=200)
+
+

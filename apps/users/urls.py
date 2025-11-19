@@ -10,6 +10,10 @@ from apps.users.views import (
     LogoutView,
     LogoutAllView,
     ChangePasswordView,
+    EnableMFAView,
+    ConfirmEnableMFAView,
+    DisableMFAView,
+    VerifyMFAView,
 )
 
 urlpatterns = [
@@ -27,4 +31,9 @@ urlpatterns = [
     path("logout-all/", LogoutAllView.as_view(), name="auth-logout-all"),
     
     path("change-password/", ChangePasswordView.as_view(), name="auth-change-password"),
+
+    path("enable-mfa/", EnableMFAView.as_view(), name="enable-mfa"),
+    path("confirm-enable-mfa/", ConfirmEnableMFAView.as_view(), name="confirm-enable-mfa"),
+    path("disable-mfa/", DisableMFAView.as_view(), name="disable-mfa"),
+    path("verify-mfa/", VerifyMFAView.as_view(), name="verify-mfa"),
 ]

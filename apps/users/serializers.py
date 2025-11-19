@@ -22,7 +22,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
-
 class CustomLoginSerializer(TokenObtainPairSerializer):
     username_field = "email"
 
@@ -36,35 +35,38 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
             raise serializers.ValidationError("Invalid email or password")
 
         if not user.email_verified:
-            raise serializers.ValidationError("Please verify email before login.")
+            raise serializers.ValidationError("Please verify email first.")
+
+        if user.role == "vendor" and user.mfa_enabled:
+            self._validated_user = user
+            return {
+                "mfa_required": True,
+                "message": "OTP sent to email",
+                "email": user.email
+            }
 
         attrs["username"] = email
-
         data = super().validate(attrs)
 
-        dashboard_map = {
-            "customer": "/customer/home",
-            "vendor": "/vendor/dashboard",
-            "admin": "/admin/panel"
+        data["user"] = {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
         }
 
-        response = {
-            "access": data["access"],
-            "refresh": data["refresh"],
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "role": user.role,
-            },
-            "dashboard": dashboard_map.get(user.role, "/")
-        }
-
-        if user.role == "vendor":
-            response["status"] = user.vendor_profile.status
-
-        return response
+        return data
 
 
+class EnableMfaSerializer(serializers.Serializer):
+    pass
+
+class ConfirmEnableMfaSerializer(serializers.Serializer):
+    secret = serializers.CharField()
+    code = serializers.CharField()
+
+class VerifyMFASerializer(serializers.Serializer):
+    session_id = serializers.UUIDField()
+    code = serializers.CharField()
 
 
 
