@@ -1,39 +1,81 @@
-from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics, permissions, filters, status
+from rest_framework.response import Response
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 
-from apps.services.serializers import VendorServiceSerializer
 from apps.services.models import VendorService
+from apps.services.serializers import (
+    VendorServiceSerializer,
+    VendorServiceCreateUpdateSerializer,
+)
 from apps.vendors.permissions import IsVendor
+from drf_yasg.utils import swagger_auto_schema
 
 
 class VendorServiceCreateView(generics.CreateAPIView):
-    serializer_class = VendorServiceSerializer
-    permission_classes = [IsAuthenticated, IsVendor]
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
+    serializer_class = VendorServiceCreateUpdateSerializer
 
-    def perform_create(self, serializer):
-        vendor_profile = self.request.user.vendor_profile
-        serializer.save(vendor=vendor_profile)
+    @swagger_auto_schema(
+        operation_description="Create a vendor service with nested addons/packages/images",
+        request_body=VendorServiceCreateUpdateSerializer,
+        tags=["Services"]
+    )
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        data = request.data
+
+        if request.FILES:
+            files = request.FILES.getlist("images")
+            data = data.copy()
+            data.setlist("images", [{"image": f} for f in files])
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        service = serializer.save()
+
+        return Response({
+            "success": True,
+            "data": VendorServiceSerializer(service, context={"request": request}).data
+        }, status=status.HTTP_201_CREATED)
 
 
 class VendorServiceListView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
     serializer_class = VendorServiceSerializer
-    permission_classes = [IsAuthenticated, IsVendor]
 
+    @swagger_auto_schema(
+        operation_description="List all services of logged-in vendor",
+        tags=["Services"]
+    )
     def get_queryset(self):
         return self.request.user.vendor_profile.services.all()
 
 
-class VendorServiceUpdateView(generics.UpdateAPIView):
-    serializer_class = VendorServiceSerializer
-    permission_classes = [IsAuthenticated, IsVendor]
+class VendorServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsVendor]
+    lookup_field = "pk"
 
     def get_queryset(self):
-        return self.request.user.vendor_profile.services.all()
+        return VendorService.objects.filter(vendor=self.request.user.vendor_profile)
 
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return VendorServiceCreateUpdateSerializer
+        return VendorServiceSerializer
 
-class VendorServiceDeleteView(generics.DestroyAPIView):
-    serializer_class = VendorServiceSerializer
-    permission_classes = [IsAuthenticated, IsVendor]
+    @swagger_auto_schema(tags=["Services"])
+    def get(self, *args, **kwargs):
+        return super().get(*args, **kwargs)
 
-    def get_queryset(self):
-        return self.request.user.vendor_profile.services.all()
+    @swagger_auto_schema(tags=["Services"])
+    def put(self, *args, **kwargs):
+        return super().put(*args, **kwargs)
+
+    @swagger_auto_schema(tags=["Services"])
+    def patch(self, *args, **kwargs):
+        return super().patch(*args, **kwargs)
+
+    @swagger_auto_schema(tags=["Services"])
+    def delete(self, *args, **kwargs):
+        return super().delete(*args, **kwargs)

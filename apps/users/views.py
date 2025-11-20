@@ -4,7 +4,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-
 from apps.users.serializers import (
     RegisterSerializer,
     SendOTPSerializer,
@@ -15,6 +14,8 @@ from apps.users.serializers import (
     ChangePasswordSerializer,
     VerifyMFASerializer,
     ConfirmEnableMfaSerializer,
+    serializers,
+    EnableMfaSerializer,
 )
 from apps.users.models import OTP
 from apps.users.utils import create_otp_for_user, verify_otp_entry
@@ -27,7 +28,15 @@ import io
 import base64
 from rest_framework import permissions
 from .models import MFASession
-
+from django.conf import settings
+from apps.core.recaptcha import verify_recaptcha
+from apps.core.captcha_utils import (
+    requires_captcha,
+    increment_failed_attempts,
+    reset_failed_attempts
+)
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 User = get_user_model()
 
@@ -45,23 +54,74 @@ class CustomLoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CustomLoginSerializer
 
+    @swagger_auto_schema(
+        operation_description="Login with email + password + reCAPTCHA + optional MFA",
+        tags=["Authentication"]
+    )
+
     def post(self, request, *args, **kwargs):
+        email = request.data.get("email")
+        ip = request.META.get("REMOTE_ADDR")
+        key = f"{email}:{ip}" if email else ip
+
+        if requires_captcha(key):
+            token = request.data.get("recaptcha_token")
+            if not token:
+                return Response({
+                    "success": False,
+                    "message": "reCAPTCHA required",
+                    "errors": {"recaptcha": ["This action requires reCAPTCHA verification"]}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            resp = verify_recaptcha(token, remoteip=ip)
+            score = resp.get("score") or 0
+
+            if not resp.get("success") or score < float(settings.RECAPTCHA_MIN_SCORE):
+                increment_failed_attempts(key)
+                return Response({
+                    "success": False,
+                    "message": "reCAPTCHA validation failed",
+                    "errors": {"recaptcha": ["validation failed"], "score": [score]}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=request.data)
+
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            raise
+        except Exception:
+            increment_failed_attempts(key)
+
+            if requires_captcha(key):
+                return Response({
+                    "success": False,
+                    "message": "Invalid credentials, reCAPTCHA is now required",
+                    "errors": {"auth": ["invalid"], "captcha_required": True}
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
+            return Response({
+                "success": False,
+                "message": "Invalid credentials",
+                "errors": {"auth": ["invalid credentials"]}
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
         user = getattr(serializer, "_validated_user", None)
+        reset_failed_attempts(key)
+
         if user and user.mfa_enabled:
             mfa_session = MFASession.create_for_user(user, valid_seconds=180)
             return Response({
+                "success": True,
                 "mfa_required": True,
                 "session_id": str(mfa_session.id),
-                "detail": "MFA required. Provide TOTP code to /api/auth/verify-mfa/"
-            }, status=200)
+                "message": "MFA required. Submit TOTP to /api/auth/verify-mfa/"
+            })
 
-        return super().post(request, *args, **kwargs)
+        tokens = super().post(request, *args, **kwargs)
+        return Response({
+            "success": True,
+            "message": "Logged in",
+            "data": tokens.data
+        }, status=200)
 
 
 
@@ -69,11 +129,23 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
 
+    @swagger_auto_schema(
+        operation_description="Register a new user with email + password + OTP verification",
+        tags=["Authentication"]
+    )
+
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 class SendOTPView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = SendOTPSerializer
+
+    @swagger_auto_schema(
+        operation_description="Send OTP for email verification or password reset",
+        tags=["OTP"]
+    )
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -106,6 +178,11 @@ class SendOTPView(generics.GenericAPIView):
 class VerifyOTPView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = VerifyOTPSerializer
+
+    @swagger_auto_schema(
+        operation_description="Verify OTP for email verification or actions",
+        tags=["OTP"]
+    )
 
     def post(self, request):
         s = self.get_serializer(data=request.data)
@@ -145,6 +222,11 @@ class SendResetOTPView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = SendOTPSerializer
 
+    @swagger_auto_schema(
+        operation_description="Send OTP for resetting password",
+        tags=["Password Reset"]
+    )
+
     def post(self, request):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -164,6 +246,11 @@ class SendResetOTPView(generics.GenericAPIView):
 class ResetPasswordView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = ResetPasswordSerializer
+
+    @swagger_auto_schema(
+        operation_description="Reset password using verified OTP",
+        tags=["Password Reset"]
+    )
 
     def post(self, request):
         s = self.get_serializer(data=request.data)
@@ -191,6 +278,11 @@ class ResetPasswordView(generics.GenericAPIView):
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Logout by blacklisting refresh token",
+        tags=["Authentication"]
+    )
+
     def post(self, request, *args, **kwargs):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -211,6 +303,11 @@ class LogoutView(APIView):
 class LogoutAllView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Logout from all devices by blacklisting all tokens",
+        tags=["Authentication"]
+    )
+
     def post(self, request, *args, **kwargs):
         from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
         tokens = OutstandingToken.objects.filter(user=request.user)
@@ -218,10 +315,16 @@ class LogoutAllView(APIView):
         for t in tokens:
             BlacklistedToken.objects.get_or_create(token=t)
         return Response({"detail": "All tokens revoked"}, status=status.HTTP_200_OK)
-    
+
+
 class ChangePasswordView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ChangePasswordSerializer
+
+    @swagger_auto_schema(
+        operation_description="Change user password",
+        tags=["Authentication"]
+    )
 
     def post(self, request):
         user = request.user
@@ -265,6 +368,11 @@ class VerifyMFAView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = VerifyMFASerializer
 
+    @swagger_auto_schema(
+        operation_description="Verify MFA TOTP and return JWT tokens",
+        tags=["MFA"]
+    )
+
     def post(self, request):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -297,7 +405,13 @@ class VerifyMFAView(generics.GenericAPIView):
 
 
 class EnableMFAView(generics.GenericAPIView):
+    serializer_class = EnableMfaSerializer
     permission_classes = [permissions.IsAuthenticated, IsVendor]
+
+    @swagger_auto_schema(
+        operation_description="Generate TOTP QR and secret for enabling MFA",
+        tags=["MFA"]
+    )
 
     def get(self, request):
         user = request.user
@@ -311,6 +425,11 @@ class EnableMFAView(generics.GenericAPIView):
 class ConfirmEnableMFAView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, IsVendor]
     serializer_class = ConfirmEnableMfaSerializer
+
+    @swagger_auto_schema(
+        operation_description="Verify TOTP code to enable MFA",
+        tags=["MFA"]
+    )
 
     def post(self, request):
         s = self.get_serializer(data=request.data)
@@ -333,6 +452,12 @@ class ConfirmEnableMFAView(generics.GenericAPIView):
 
 class DisableMFAView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, IsVendor]
+    serializer_class = serializers.Serializer
+
+    @swagger_auto_schema(
+        operation_description="Disable MFA for vendor",
+        tags=["MFA"]
+    )
 
     def post(self, request):
         user = request.user

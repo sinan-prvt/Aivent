@@ -15,9 +15,17 @@ from apps.users.utils import create_otp_for_user
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
 from django.conf import settings
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 
 class VendorRegisterView(generics.CreateAPIView):
     serializer_class = VendorRegisterSerializer
+
+    @swagger_auto_schema(
+        operation_description="Vendor registration",
+        tags=["Vendors"]
+    )
 
     def create(self, request, *args, **kwargs):
         s = self.get_serializer(data=request.data)
@@ -44,21 +52,39 @@ class VendorProfileView(generics.RetrieveAPIView):
     serializer_class = VendorProfileSerializer
     permission_classes = [IsAuthenticated, IsVendor]
 
-    def get_object(self):
-        return self.request.user.vendor_profile
+    @swagger_auto_schema(
+        operation_description="Get vendor profile",
+        tags=["Vendors"]
+    )
 
+    def get_object(self):
+        if getattr(self, "swagger_fake_view", False):
+            return VendorProfile()
+        return self.request.user.vendor_profile
 
 class VendorProfileUpdateView(generics.UpdateAPIView):
     serializer_class = VendorProfileUpdateSerializer
     permission_classes = [IsAuthenticated, IsVendor]
 
+    @swagger_auto_schema(
+        operation_description="Update vendor profile",
+        tags=["Vendors"]
+    )
+
     def get_object(self):
+        if getattr(self, "swagger_fake_view", False):
+            return VendorProfile()
         return self.request.user.vendor_profile
 
 
 class PendingVendorsView(generics.ListAPIView):
     serializer_class = VendorProfileSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+
+    @swagger_auto_schema(
+        operation_description="Admin: List pending vendor approvals",
+        tags=["Vendor Admin"]
+    )
 
     def get_queryset(self):
         return VendorProfile.objects.filter(status="pending")
@@ -67,6 +93,11 @@ class PendingVendorsView(generics.ListAPIView):
 class ApproveVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @swagger_auto_schema(
+        operation_description="Admin: Approve vendor",
+        tags=["Vendor Admin"]
+    )
+    
     def post(self, request, vendor_id):
         vendor = get_object_or_404(VendorProfile, id=vendor_id)
         user = vendor.user
@@ -108,6 +139,11 @@ class ApproveVendorView(generics.GenericAPIView):
 class RejectVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @swagger_auto_schema(
+        operation_description="Admin: Reject vendor",
+        tags=["Vendor Admin"]
+    )
+
     def post(self, request, vendor_id):
         vendor = get_object_or_404(VendorProfile, id=vendor_id)
         vendor.status = "rejected"
@@ -117,6 +153,11 @@ class RejectVendorView(generics.GenericAPIView):
 
 class SuspendVendorView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
+
+    @swagger_auto_schema(
+        operation_description="Admin: Suspend vendor",
+        tags=["Vendor Admin"]
+    )
 
     def post(self, request, vendor_id):
         vendor = get_object_or_404(VendorProfile, id=vendor_id)

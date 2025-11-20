@@ -1,3 +1,4 @@
 from django.contrib import admin
+from apps.vendors.models import VendorProfile
 
-# Register your models here.
+admin.site.register(VendorProfile)

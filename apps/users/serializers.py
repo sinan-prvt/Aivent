@@ -2,25 +2,44 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from apps.users.models import OTP
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from apps.core.recaptcha import verify_recaptcha
+from apps.core.captcha_utils import increment_failed_attempts, reset_failed_attempts, requires_captcha
 
 User = get_user_model()
 
+
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
+    recaptcha_token = serializers.CharField(required=False, write_only=True)
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "password")
+        fields = ["email", "password", "recaptcha_token"]
+        
+    def validate(self, attrs):
+        request = self.context.get('request')
+        ip = request.META.get('REMOTE_ADDR') if request else None
+        key = ip or attrs.get('email') or 'anon'
+
+        if requires_captcha(key):
+            token = attrs.get("recaptcha_token") or (request.data.get("recaptcha_token") if request else None)
+            if not token:
+                raise serializers.ValidationError({"recaptcha_token": ["reCAPTCHA required"]})
+            resp = verify_recaptcha(token, remoteip=ip)
+            if not resp.get("success") or (resp.get("score") or 0.0) < float(getattr(settings, "RECAPTCHA_MIN_SCORE", 0.5)):
+                increment_failed_attempts(key)
+                raise serializers.ValidationError({"recaptcha_token": ["reCAPTCHA validation failed"]})
+
+        return super().validate(attrs)
 
     def create(self, validated_data):
-        user = User(
-            username=validated_data["username"],
-            email=validated_data["email"],
-            role="customer",
-        )
-        user.set_password(validated_data["password"])
-        user.save()
+        validated_data.pop("recaptcha_token", None)
+        user = super().create(validated_data)
+        request = self.context.get('request')
+        ip = request.META.get('REMOTE_ADDR') if request else None
+        key = ip or user.email
+        reset_failed_attempts(key)
         return user
+
 
 class CustomLoginSerializer(TokenObtainPairSerializer):
     username_field = "email"
@@ -32,16 +51,20 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
         user = authenticate(username=email, password=password)
 
         if not user:
-            raise serializers.ValidationError("Invalid email or password")
+            raise serializers.ValidationError({
+                "auth": ["Invalid email or password"]
+            })
 
-        if not user.email_verified:
-            raise serializers.ValidationError("Please verify email first.")
+        if user.role != "admin" and not user.email_verified:
+            raise serializers.ValidationError({
+                "email": ["Please verify email first."]
+            })
+        
+        self._validated_user = user
 
         if user.role == "vendor" and user.mfa_enabled:
-            self._validated_user = user
             return {
                 "mfa_required": True,
-                "message": "OTP sent to email",
                 "email": user.email
             }
 
