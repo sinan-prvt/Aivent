@@ -4,13 +4,17 @@ from datetime import timedelta
 from django.utils import timezone
 from apps.users.models import OTP
 
+
 OTP_LENGTH = 6
+
 
 def generate_otp():
     return ''.join(secrets.choice("0123456789") for _ in range(OTP_LENGTH))
 
+
 def make_otp_hash(otp, salt):
     return hashlib.sha256(f"{otp}{salt}".encode()).hexdigest()
+
 
 def create_otp_for_user(user, purpose, expiry=600):
     otp = generate_otp()
@@ -26,6 +30,8 @@ def create_otp_for_user(user, purpose, expiry=600):
     )
     return otp, otp_obj
 
+
 def verify_otp_entry(otp_obj, otp):
     candidate_hash = make_otp_hash(otp, otp_obj.salt)
     return candidate_hash == otp_obj.otp_hash
+
