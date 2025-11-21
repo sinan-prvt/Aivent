@@ -213,6 +213,10 @@ class VerifyOTPView(generics.GenericAPIView):
             user.email_verified = True
             user.save()
 
+        if purpose == "reset_password":
+            otp_obj.used = True
+            otp_obj.save()
+
         return Response({"detail": "OTP verified successfully"}, status=200)
 
 

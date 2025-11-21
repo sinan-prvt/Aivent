@@ -4,6 +4,7 @@ from apps.users.models import OTP
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from apps.core.recaptcha import verify_recaptcha
 from apps.core.captcha_utils import increment_failed_attempts, reset_failed_attempts, requires_captcha
+from django.conf import settings
 
 User = get_user_model()
 
@@ -31,15 +32,20 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return super().validate(attrs)
 
+    class Meta:
+        model = User
+        fields = ["email", "password", "recaptcha_token"]
+        extra_kwargs = {"password": {"write_only": True}}
+
     def create(self, validated_data):
         validated_data.pop("recaptcha_token", None)
-        user = super().create(validated_data)
-        request = self.context.get('request')
-        ip = request.META.get('REMOTE_ADDR') if request else None
-        key = ip or user.email
-        reset_failed_attempts(key)
-        return user
 
+        password = validated_data.pop("password")
+
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
 
 class CustomLoginSerializer(TokenObtainPairSerializer):
     username_field = "email"
@@ -48,9 +54,9 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
         email = attrs.get("email")
         password = attrs.get("password")
 
-        user = authenticate(username=email, password=password)
+        user = User.objects.filter(email=email).first()
 
-        if not user:
+        if not user or not user.check_password(password):
             raise serializers.ValidationError({
                 "auth": ["Invalid email or password"]
             })

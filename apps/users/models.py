@@ -1,14 +1,10 @@
 from django.db import models
-
-from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
-from django.utils import timezone
 import pyotp
+from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.base_user import BaseUserManager
-
-
 
 
 class UserManager(BaseUserManager):
@@ -69,7 +65,6 @@ class User(AbstractUser):
         return f"{self.email} ({self.role})"
 
 
-
 class MFASession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_sessions")
@@ -104,3 +99,4 @@ class OTP(models.Model):
 
     def is_expired(self):
         return timezone.now() >= self.expires_at
+
