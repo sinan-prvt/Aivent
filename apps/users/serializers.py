@@ -6,6 +6,7 @@ from apps.core.recaptcha import verify_recaptcha
 from apps.core.captcha_utils import increment_failed_attempts, reset_failed_attempts, requires_captcha
 from django.conf import settings
 
+
 User = get_user_model()
 
 
@@ -23,9 +24,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         if requires_captcha(key):
             token = attrs.get("recaptcha_token") or (request.data.get("recaptcha_token") if request else None)
+
             if not token:
                 raise serializers.ValidationError({"recaptcha_token": ["reCAPTCHA required"]})
             resp = verify_recaptcha(token, remoteip=ip)
+            
             if not resp.get("success") or (resp.get("score") or 0.0) < float(getattr(settings, "RECAPTCHA_MIN_SCORE", 0.5)):
                 increment_failed_attempts(key)
                 raise serializers.ValidationError({"recaptcha_token": ["reCAPTCHA validation failed"]})
@@ -39,13 +42,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("recaptcha_token", None)
-
         password = validated_data.pop("password")
-
         user = User(**validated_data)
         user.set_password(password)
         user.save()
         return user
+
 
 class CustomLoginSerializer(TokenObtainPairSerializer):
     username_field = "email"
@@ -89,14 +91,15 @@ class CustomLoginSerializer(TokenObtainPairSerializer):
 class EnableMfaSerializer(serializers.Serializer):
     pass
 
+
 class ConfirmEnableMfaSerializer(serializers.Serializer):
     secret = serializers.CharField()
     code = serializers.CharField()
 
+
 class VerifyMFASerializer(serializers.Serializer):
     session_id = serializers.UUIDField()
     code = serializers.CharField()
-
 
 
 class SendOTPSerializer(serializers.Serializer):
@@ -118,6 +121,9 @@ class ResetPasswordSerializer(serializers.Serializer):
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
+
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True, min_length=8)
+
+    
